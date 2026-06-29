@@ -45,6 +45,10 @@ mm thread <post-id> --limit 0      # full thread
 mm search "deployment issue"
 mm mentions                         # @-mentions in last 24h
 
+# Download files by file ID
+mm download abc123def456ghi789jkl012
+mm download abc123... def456... --output downloads/
+
 # Channel info
 mm channel general                  # purpose, members, pinned count
 mm channels --since 6h              # recently active channels
@@ -62,6 +66,7 @@ All commands output JSON by default. Key fields:
 
 - **`thread_id`** on every post - pass to `mm thread`
 - **`ref`** on channel entries - pass to `mm messages`
+- **`files[].id`** on posts with attachments - pass to `mm download`
 - **`is_bot`** / **`bot_name`** - webhook/bot posts flagged automatically
 - **`root`** on reply-mentions - the original message being replied to
 - **`reactions`** - emoji counts like `{"+1": 3}`

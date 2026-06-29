@@ -53,4 +53,4 @@ def get_context(state: State):
 
 # Import command modules to register them on the main group.
 # Each module imports `main` and uses @main.command() decorators.
-from .commands import auth, channels, messages, overview, people, search  # noqa: E402, F401
+from .commands import auth, channels, files, messages, overview, people, search  # noqa: E402, F401

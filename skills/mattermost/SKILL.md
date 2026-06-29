@@ -114,12 +114,25 @@ Every post includes these fields so you can navigate without guesswork:
 |-------|---------------|
 | `thread_id` | Pass to `mm thread` to read full conversation |
 | `ref` | On channel entries; pass to `mm messages` |
+| `files[].id` | On post attachments; pass to `mm download` |
 | `is_bot` / `bot_name` | Webhook and bot posts are flagged automatically |
 | `root` | On reply-mentions; the original message being replied to |
 | `is_reply` / `reply_count` | Thread structure |
 | `reactions` | Emoji counts like `{"+1": 3, "white_check_mark": 1}` |
 
 Bot posts from webhooks automatically extract alert content from Slack-format attachments, so you see the actual alert text instead of empty messages.
+
+## Downloading attachments
+
+When a post has attachments, inspect its `files` array and use the file ID to save the attachment locally:
+
+```bash
+mm messages incidents --limit 5
+mm download abc123def456ghi789jkl012
+mm download abc123... def456... --output downloads/
+```
+
+`mm download` saves each file locally and returns JSON with the original file metadata plus the `saved_to` path.
 
 ## Further reading
 

@@ -42,6 +42,22 @@ mm thread <post_id> [--limit 10] [--since 1h]
 - `--limit 0` - all replies (default: root + 9 replies)
 - `--since` - only replies after this time (root always included)
 
+## download
+
+Download one or more attached files by file ID.
+
+```
+mm download <file_id>... [--output DIR]
+```
+
+- `file_id` - attachment ID from `files[].id` in post JSON output
+- `--output` - directory to save files into (default: current directory)
+
+Typical flow:
+1. `mm messages <channel>` or `mm thread <post_id>`
+2. inspect `files[].id`
+3. `mm download <file_id>`
+
 ## mentions
 
 Posts that @-mention you. Reply-mentions include `root` context (the original message being replied to).
