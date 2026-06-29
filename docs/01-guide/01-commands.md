@@ -52,6 +52,17 @@ The root message is always included regardless of `--limit` or `--since` so you 
 
 The post ID can be any post in the thread (root or reply). The CLI resolves it to the full thread automatically.
 
+## mm download
+
+Download one or more attached files by file ID.
+
+```bash
+mm download abc123def456ghi789jkl012
+mm download abc123... def456... --output downloads/
+```
+
+Use the `files[].id` field from `mm messages`, `mm thread`, `mm mentions`, `mm pinned`, or `mm search` JSON output.
+
 ## mm mentions
 
 Show posts that @mention you. Reply-mentions include a `root` field with the original message being replied to.

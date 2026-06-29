@@ -1,8 +1,11 @@
 """Output formatting - markdown tables and JSON."""
 
 import json
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
+
+from .downloads import file_entries
 
 
 # Channel type labels
@@ -55,11 +58,8 @@ def enrich_post(post: dict, author: str, channel_name: str = "",
     if not root_id and post.get("reply_count"):
         entry["reply_count"] = post["reply_count"]
     # File metadata if available
-    if file_ids and post.get("metadata", {}).get("files"):
-        entry["files"] = [
-            {"name": f.get("name", ""), "size": f.get("size", 0)}
-            for f in post["metadata"]["files"]
-        ]
+    if file_ids:
+        entry["files"] = file_entries(post)
     # Bot/webhook detection + attachment text extraction
     props = post.get("props", {})
     if props.get("from_webhook") == "true":
@@ -268,6 +268,25 @@ def format_posts_json(
 ) -> str:
     """Format posts as JSON - delegates to enrich_posts."""
     return json.dumps(enrich_posts(posts, authors, channel_name or ""), indent=2)
+
+
+def format_downloads_json(downloads: list[dict]) -> str:
+    """Format download results as JSON."""
+    return json.dumps(downloads, indent=2)
+
+
+def format_downloads_md(downloads: list[dict]) -> str:
+    """Format download results as markdown."""
+    if not downloads:
+        return "No files downloaded."
+
+    lines = ["| File | Size | Saved to |", "|------|------|----------|"]
+    for item in downloads:
+        name = item.get("name") or item.get("file_id", "")
+        size = item.get("size", 0)
+        saved_to = Path(item.get("saved_to", "")).as_posix()
+        lines.append(f"| {name} | {size} | {saved_to} |")
+    return "\n".join(lines)
 
 
 def _format_timestamp(create_at_ms: int) -> str:

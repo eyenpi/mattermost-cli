@@ -44,7 +44,7 @@ These appear only when relevant:
 | Field | When | Description |
 |-------|------|-------------|
 | `reply_count` | Root posts with replies | Number of replies in the thread |
-| `files` | Posts with file metadata | Array of `{"name": "...", "size": 12345}` |
+| `files` | Posts with file metadata | Array of `{"id": "...", "name": "...", "size": 12345, "mime_type": "..."}` |
 | `team` | Search and mentions output | Team display name |
 | `is_bot` | Webhook/bot posts | Always `true` when present |
 | `bot_name` | Webhook posts with a display name | The webhook's username (e.g. `"alertmatter"`) |
@@ -65,6 +65,40 @@ Posts from webhooks and bots are automatically flagged:
 ```
 
 When a webhook post has an empty `message` but includes Slack-format attachments (common for alert systems), the CLI extracts the alert text automatically. Without this, bot posts in alert channels would appear as empty messages.
+
+### Downloading files
+
+When a post includes attachments, each file entry includes a stable `id` you can pass to `mm download`.
+
+```json
+{
+  "id": "ixtrtzkhk7fs9cayrz44uq5bgy",
+  "file_count": 1,
+  "files": [
+    {
+      "id": "abc123def456ghi789jkl012",
+      "name": "incident-report.pdf",
+      "size": 48213,
+      "mime_type": "application/pdf",
+      "extension": "pdf"
+    }
+  ]
+}
+```
+
+`mm download` returns one record per saved file:
+
+```json
+[
+  {
+    "file_id": "abc123def456ghi789jkl012",
+    "name": "incident-report.pdf",
+    "size": 48213,
+    "mime_type": "application/pdf",
+    "saved_to": "downloads/incident-report.pdf"
+  }
+]
+```
 
 ## Overview (overview command)
 

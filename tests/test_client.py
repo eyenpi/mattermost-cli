@@ -158,6 +158,38 @@ class TestFormatters:
         assert p["thread_id"] == "root1"  # reply: thread_id == root_id
         assert p["is_reply"] is True
 
+    def test_posts_json_includes_file_ids(self):
+        import json
+
+        from mmchat.formatters import format_posts_json
+
+        posts = [{
+            "id": "abc",
+            "create_at": 1772490600000,
+            "user_id": "u1",
+            "message": "see attachment",
+            "root_id": "",
+            "channel_id": "c1",
+            "file_ids": ["f1"],
+            "metadata": {"files": [{"name": "report.pdf", "size": 42, "mime_type": "application/pdf"}]},
+        }]
+        result = json.loads(format_posts_json(posts, {"u1": "@alice"}))
+        assert result[0]["files"] == [{
+            "id": "f1",
+            "name": "report.pdf",
+            "size": 42,
+            "mime_type": "application/pdf",
+            "extension": "",
+        }]
+
+    def test_downloads_md_format(self):
+        from mmchat.formatters import format_downloads_md
+
+        result = format_downloads_md([
+            {"file_id": "f1", "name": "report.pdf", "size": 42, "saved_to": "downloads/report.pdf"},
+        ])
+        assert "| report.pdf | 42 | downloads/report.pdf |" in result
+
 
 class TestResolverDM:
     """Test DM channel name resolution logic."""

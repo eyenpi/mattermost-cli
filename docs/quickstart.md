@@ -79,6 +79,13 @@ mm thread abc123def456ghi789jkl012
 
 Returns the root message + last 9 replies by default. Use `--limit 0` for the full thread, or `--since 1h` for recent replies only.
 
+**Download an attachment:**
+
+```bash
+mm messages incidents --limit 5     # inspect files[].id in JSON output
+mm download abc123def456ghi789jkl012 --output downloads/
+```
+
 **Human-readable output:**
 
 ```bash
