@@ -21,6 +21,10 @@ class PageLimitReached(ValueError):
     pass
 
 
+class UnsupportedSearchPagination(ValueError):
+    pass
+
+
 def ordered_posts(result: dict) -> list[dict]:
     """Validate a post-list response rather than silently dropping missing posts."""
     if not isinstance(result, dict) or not isinstance(result.get("order"), list) or not isinstance(result.get("posts"), dict):
@@ -40,19 +44,20 @@ def ordered_posts(result: dict) -> list[dict]:
 
 def collect_posts(fetch: Callable, report: Coverage, source: dict, *,
                   limit: int = 0, since_ms: Optional[int] = None,
-                  cursor: bool = False) -> list[dict]:
+                  confirm_exhaustion: Optional[Callable[[], None]] = None) -> list[dict]:
     """Walk newest-first pages, retaining partial results on failure.
 
     Short pages are not proof of exhaustion: servers may clamp per_page.
     """
     posts = {}
-    before = None
     for page in range(MAX_PAGES):
         try:
-            response = fetch(before if cursor else page)
+            response = fetch(page)
             source["pages_fetched"] += 1
             batch = ordered_posts(response)
             if not batch:
+                if confirm_exhaustion:
+                    confirm_exhaustion()
                 source["stop_reason"] = "exhausted"
                 break
             new = [post for post in batch if post["id"] not in posts]
@@ -67,10 +72,12 @@ def collect_posts(fetch: Callable, report: Coverage, source: dict, *,
             if since_ms is not None and any(p["create_at"] < since_ms for p in batch):
                 source["stop_reason"] = "since"
                 break
-            before = batch[-1]["id"]
         except Exception as error:
             report.fail(f"{source['kind']}:{source['id']}", error)
-            source["stop_reason"] = "stalled" if isinstance(error, PaginationStalled) else "failure"
+            if isinstance(error, UnsupportedSearchPagination):
+                source["stop_reason"] = "unsupported_pagination"
+            else:
+                source["stop_reason"] = "stalled" if isinstance(error, PaginationStalled) else "failure"
             break
     else:
         report.fail(f"{source['kind']}:{source['id']}", PageLimitReached("Page safety limit reached"))

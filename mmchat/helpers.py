@@ -4,7 +4,7 @@ import contextlib
 import io
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import click
@@ -14,7 +14,7 @@ from .client import EXIT_ERROR, MMContext
 from .coverage import Coverage, current_coverage
 from .formatters import TYPE_LABELS, _iso_ts, channel_ref
 from .resolve import Resolver
-from .retrieval import PAGE_SIZE, collect_posts
+from .retrieval import PAGE_SIZE, UnsupportedSearchPagination, collect_posts, ordered_posts
 from .time_utils import parse_since
 
 
@@ -36,7 +36,10 @@ def resolve_channel(ctx: MMContext, resolver: Resolver, channel_arg: str) -> dic
                 sys.exit(EXIT_ERROR)
             other_id = users[0]["id"]
             for team in ctx.teams:
-                channels = get_user_channels(ctx, team.id)
+                try:
+                    channels = get_user_channels(ctx, team.id)
+                except Exception:
+                    continue
                 for ch in channels:
                     if ch["type"] == "D" and other_id in ch["name"].split("__"):
                         return ch
@@ -66,6 +69,11 @@ def resolve_channel(ctx: MMContext, resolver: Resolver, channel_arg: str) -> dic
             if report:
                 report.recovered(error)
             continue
+        except Exception as error:
+            report = current_coverage.get()
+            if report:
+                report.fail("resolve_channel", error)
+            continue
 
     click.echo(f"Error: Channel '{channel_arg}' not found in any team.", err=True)
     sys.exit(EXIT_ERROR)
@@ -85,7 +93,8 @@ def search_mentions(ctx: MMContext, since_ms: Optional[int] = None,
     """Search for @-mentions across all teams. Returns [(post, team_name)] deduped."""
     terms = f"@{ctx.username}"
     if since_ms:
-        since_date = datetime.fromtimestamp(since_ms / 1000, tz=timezone.utc)
+        # Mattermost interprets after:DATE as midnight on the following day.
+        since_date = datetime.fromtimestamp(since_ms / 1000, tz=timezone.utc) - timedelta(days=1)
         terms += f" after:{since_date.strftime('%Y-%m-%d')}"
     return search_posts(ctx, terms, limit, since_ms)
 
@@ -99,12 +108,33 @@ def search_posts(ctx: MMContext, terms: str, limit: int = 30,
     for team in ctx.teams:
         report.teams.add(team.id)
         source = report.source("search", team.id, limit)
+        first_page_size = 0
 
         def fetch(page):
-            return ctx.driver.posts.search_for_team_posts(team.id, {
-                "terms": terms, "is_or_search": False, "page": page, "per_page": PAGE_SIZE})
+            nonlocal first_page_size
+            result = ctx.driver.posts.search_for_team_posts(team.id, {
+                "terms": terms, "is_or_search": False, "page": page, "per_page": PAGE_SIZE,
+                "time_zone_offset": 0})
+            if page == 0:
+                order = result.get("order") if isinstance(result, dict) else None
+                first_page_size = len(order) if isinstance(order, list) else 0
+            return result
 
-        posts = collect_posts(fetch, report, source, limit=limit, since_ms=since_ms)
+        def confirm_exhaustion():
+            # DB search caps page zero at 100 and returns empty later pages.
+            # A one-result probe distinguishes it from a paged backend with
+            # exactly 100 matches. Below the cap, no such ambiguity exists.
+            if first_page_size < 100 or source["pages_fetched"] != 2:
+                return
+            probe = ctx.driver.posts.search_for_team_posts(team.id, {
+                "terms": terms, "is_or_search": False, "page": 0, "per_page": 1,
+                "time_zone_offset": 0})
+            source["pages_fetched"] += 1
+            if len(ordered_posts(probe)) > 1:
+                raise UnsupportedSearchPagination("Search backend ignores pagination; exhaustion is unverified")
+
+        posts = collect_posts(fetch, report, source, limit=limit, since_ms=since_ms,
+                              confirm_exhaustion=confirm_exhaustion)
         all_posts.extend((p, team.display_name) for p in posts)
 
     all_posts.sort(key=lambda pt: (pt[0]["create_at"], pt[0]["id"]), reverse=True)

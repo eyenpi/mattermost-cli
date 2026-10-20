@@ -47,13 +47,12 @@ def messages(state, channel, since, limit, threads):
     report.conversations.add(ch["id"])
     source = report.source("messages", ch["id"], limit)
 
-    def fetch(before):
-        params = {"per_page": min(limit or PAGE_SIZE, PAGE_SIZE)}
-        if before:
-            params["before"] = before
+    def fetch(page):
+        # Mattermost's before cursor excludes the whole boundary millisecond.
+        params = {"page": page, "per_page": min(limit or PAGE_SIZE, PAGE_SIZE)}
         return ctx.driver.posts.get_posts_for_channel(ch["id"], params=params)
 
-    posts = collect_posts(fetch, report, source, limit=limit, since_ms=since_ms, cursor=True)
+    posts = collect_posts(fetch, report, source, limit=limit, since_ms=since_ms)
     posts.reverse()
 
     user_map, authors = resolve_authors(resolver, posts)

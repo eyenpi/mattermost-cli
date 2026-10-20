@@ -92,6 +92,7 @@ class ReliableClient(Client):
                 raise
             if report:
                 try:
+                    inaccessible = response.headers.get("Has-Inaccessible-Posts", "").lower() == "true"
                     if path.endswith(("/posts", "/posts/search", "/thread", "/channels", "/members", "/pinned")):
                         report.pages_fetched += 1
                         data = response.json()
@@ -99,7 +100,9 @@ class ReliableClient(Client):
                             report.conversations.update(ch["id"] for ch in data)
                         elif isinstance(data, dict) and "posts" in data:
                             report.conversations.update(p["channel_id"] for p in data["posts"].values() if p.get("channel_id"))
-                    if response.headers.get("Has-Inaccessible-Posts", "").lower() == "true":
+                        if isinstance(data, dict) and data.get("first_inaccessible_post_time", 0):
+                            inaccessible = True
+                    if inaccessible:
                         report.fail(f"{method.upper()} {path}", PermissionError("Server withheld inaccessible posts"))
                     channel = re.match(r"/channels/([^/]+)(?:/|$)", path)
                     if channel:

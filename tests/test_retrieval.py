@@ -20,10 +20,10 @@ def test_page_budget_retains_partial_results(monkeypatch):
     assert report.failures[0]["error"] == "PageLimitReached"
 
 
-def test_cursor_stall_retains_partial_results():
+def test_page_stall_retains_partial_results():
     report = Coverage("test")
     source = report.source("messages", "channel", 0)
-    posts = collect_posts(lambda cursor: post_list([post(10)]), report, source, cursor=True)
+    posts = collect_posts(lambda page: post_list([post(10)]), report, source)
     assert len(posts) == 1
     assert source["stop_reason"] == "stalled"
     assert source["pages_fetched"] == 2

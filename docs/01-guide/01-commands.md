@@ -98,6 +98,10 @@ mentions return the newest matches first, merged and deduplicated across selecte
 teams. `--since` on messages and mentions filters by creation time, including posts
 exactly at the cutoff. Message retrieval walks older posts instead of using the
 server's capped, modified-since endpoint.
+Mentions widens the server's `after:DATE` filter to the previous UTC date because
+Mattermost starts that filter on the following day, then applies the exact
+creation-time cutoff locally. This includes today's mentions and posts exactly
+at midnight for `--since today`.
 
 Retrieval commands write coverage to stderr and keep their existing stdout JSON
 shapes. Check the exit status as well as the data: partial results remain useful

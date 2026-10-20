@@ -52,6 +52,7 @@ def get_context(state: State):
     context = ensure_auth(creds["url"], creds["token"], team)
     report = current_coverage.get()
     if report:
+        report.retrieval_started = True
         report.scope.update(team=team, team_ids=context.team_ids)
     return context
 

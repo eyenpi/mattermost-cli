@@ -26,6 +26,7 @@ class Coverage:
     sources: list = field(default_factory=list)
     failures: list = field(default_factory=list)
     _errors: list = field(default_factory=list, repr=False)
+    retrieval_started: bool = False
 
     def fail(self, operation: str, error: BaseException) -> None:
         if any(existing is error for existing in self._errors):
@@ -69,6 +70,10 @@ def retrieval_command(function):
             try:
                 result = function(state, *args, **kwargs)
             except SystemExit as error:
+                if error.code and report.retrieval_started and report.failures:
+                    if not state.human:
+                        click.echo("{}" if function.__name__ in ("overview", "channel", "user") else "[]")
+                    raise SystemExit(EXIT_INCOMPLETE) from None
                 if error.code and not report.failures:
                     report.fail("command", error)
                 raise
@@ -79,7 +84,7 @@ def retrieval_command(function):
                 report.fail("command", error)
                 if not state.human:
                     click.echo("{}" if function.__name__ in ("overview", "channel", "user") else "[]")
-                raise SystemExit(EXIT_INCOMPLETE) from None
+                raise SystemExit(EXIT_INCOMPLETE if report.retrieval_started else 1) from None
             if report.failures:
                 raise SystemExit(EXIT_INCOMPLETE)
             return result

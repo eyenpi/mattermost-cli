@@ -35,9 +35,9 @@ The report has a top-level `coverage` object with these fields:
 | `sources` | Per-source kind, ID, limit, pages fetched, returned count and stop reason |
 | `failures` | Unrecovered operations with error types and HTTP status when available; excludes raw server text and credentials |
 
-Source stop reasons are `limit`, `since`, `exhausted`, `stalled`, `page_limit`, or
-`failure`. A source's `returned` count is before cross-team merging or thread-index
-grouping. The overview's mentions section retains its existing limit of 30 and
+Source stop reasons are `limit`, `since`, `exhausted`, `stalled`, `page_limit`,
+`unsupported_pagination`, or `failure`. A source's `returned` count is before
+cross-team merging or thread-index grouping. The overview's mentions section retains its existing limit of 30 and
 reports that limit explicitly.
 
 `complete: true` means the requested bounds were satisfied. A source stopped at
@@ -48,6 +48,14 @@ history. Server permissions, retention and search indexing still determine what
 is accessible, and paging does not provide a snapshot against concurrent edits.
 Search paging support depends on the server's search backend; a server that
 ignores page parameters and repeats results is reported as stalled and incomplete.
+The database search backend instead caps the first page at 100 matches and returns
+empty later pages. When that could hide additional matches, a smaller-page probe
+checks whether pagination is supported. An unsupported or unverified backend
+returns partial data with `unsupported_pagination` and exit code 4, even when
+exactly 100 matches might exist. Requests satisfied within the cap still succeed;
+fewer than 100 matches can establish exhaustion. Probe responses count toward
+pages fetched. Message retrieval uses page offsets to avoid losing posts that
+share a millisecond with a `before` cursor boundary.
 
 Exit code **4** indicates incomplete retrieval: useful partial data is retained,
 but retries were exhausted, a source or enrichment failed, pagination stalled,
@@ -55,6 +63,11 @@ the server explicitly withheld posts, or the 1,000-page safety limit per paginat
 source was reached. Reaching the requested result limit is successful. Existing
 setup/argument errors remain nonzero, and expired credentials during initial
 authentication retain exit code **2**.
+Unrecovered channel/user lookup failures after authentication use exit code **4**;
+initial authentication/setup failures retain exit code **1** (or **2** for an
+expired token). Failed teams are retained in coverage while lookup continues in
+other selected teams. Inaccessible history is detected from the JSON
+`first_inaccessible_post_time` field as well as the compatibility header.
 
 Requests use a 15-second timeout. Read operations allow at most three attempts for
 transient connection/timeouts and HTTP 429, 500, 502, 503 or 504. Backoff starts at

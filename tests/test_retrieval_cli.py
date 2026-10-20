@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 from collections import Counter
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -44,6 +45,8 @@ def api(monkeypatch, tmp_path):
         overlap = False
         dm = False
         inaccessible = False
+        first_inaccessible_post_time = 0
+        database_search = False
 
         def response(self, method, path, query, body):
             self.requests.append((method, path, query, body))
@@ -76,11 +79,14 @@ def api(monkeypatch, tmp_path):
                 return 200, {"id": "channel1", "name": "general", "display_name": "General", "type": "O"}
             if path == "/channels/channel1/posts":
                 size = min(int(query.get("per_page", [60])[0]), self.message_page_size)
-                start = 0
+                posts = self.posts
                 if "before" in query and not self.repeat:
-                    ids = [p["id"] for p in self.posts]
-                    start = ids.index(query["before"][0]) + 1
-                return 200, post_list(self.posts[start:start + size])
+                    boundary = next(p["create_at"] for p in posts if p["id"] == query["before"][0])
+                    posts = [p for p in posts if p["create_at"] < boundary]
+                page = 0 if self.repeat else int(query.get("page", [0])[0])
+                result = post_list(posts[page * size:(page + 1) * size])
+                result["first_inaccessible_post_time"] = self.first_inaccessible_post_time
+                return 200, result
             if path.endswith("/posts/search"):
                 page = 0 if self.repeat else body.get("page", 0)
                 size = min(body.get("per_page", 60), self.search_page_size)
@@ -88,6 +94,12 @@ def api(monkeypatch, tmp_path):
                     return 200, {"order": ["missing"], "posts": {}}
                 start = max(0, page * size - (10 * page if self.overlap else 0))
                 posts = self.team_posts.get(path.split("/")[2], self.posts)
+                after = next((term[6:] for term in body["terms"].split() if term.startswith("after:")), None)
+                if after:
+                    cutoff = datetime.strptime(after, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)
+                    posts = [p for p in posts if p["create_at"] >= int(cutoff.timestamp() * 1000)]
+                if self.database_search:
+                    return 200, post_list(posts[:100] if page == 0 else [])
                 return 200, post_list(posts[start:start + size])
             if path == "/channels/channel1/pinned":
                 return 200, post_list(self.posts[:20])
@@ -123,6 +135,8 @@ def api(monkeypatch, tmp_path):
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))) or "null")
             status, data = state.response(self.command, parsed.path.removeprefix("/api/v4"),
                                           parse_qs(parsed.query), body)
+            if isinstance(data, dict) and "posts" in data:
+                data["first_inaccessible_post_time"] = state.first_inaccessible_post_time
             payload = json.dumps(data).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
